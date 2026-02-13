@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "@livo/datetime": "file:../../datetime",
-    "@livo/scheduler-core": "file:../core"
+    "@livo/scheduler-core": "file:../core",
+    "lit": "^3.3.2"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
