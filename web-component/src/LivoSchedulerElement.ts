@@ -30,8 +30,8 @@ export class LivoSchedulerElement extends LitElement {
         return html`
             <livo-scheduler-toolbar 
                     .presentation=${{ locale, weekLabel }}
-                    .doctorOptions=${this.resourceOptions}
-                    .doctorId=${this.selectedResourceId}
+                    .resourceOptions=${this.resourceOptions}
+                    .selectedResourceId=${this.selectedResourceId}
             ></livo-scheduler-toolbar>
             
             <livo-scheduler-week-view
