@@ -32,10 +32,11 @@ export class LivoSchedulerSlotCell extends LitElement {
 
     static styles = css`
         :host { 
-            display: block; 
+            display: block;
+            min-height: 100%;
         }
         .slot-cell {
-            min-height: 2.5rem;
+            min-height: 4rem;
             border-bottom: 1px solid #e5e7eb;
             border-right: 1px solid #e5e7eb;
             cursor: pointer;
