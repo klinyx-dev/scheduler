@@ -3,7 +3,6 @@ import "./internal/LivoSchedulerWeekGrid";
 import {css, html, LitElement} from "lit";
 import { customElement, property } from "lit/decorators.js";
 import {
-    SCHEDULER_EVENTS,
     SchedulerPresentation,
     SchedulerViewModel
 } from "./scheduler-contract";

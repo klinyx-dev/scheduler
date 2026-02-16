@@ -1,15 +1,27 @@
 import {css, html, LitElement} from "lit";
 import {customElement, property} from "lit/decorators.js";
-import {SCHEDULER_EVENTS, SchedulerNavigateDetail, SchedulerToolbarPresentation} from "./scheduler-contract";
+import {
+    SCHEDULER_EVENTS,
+    SchedulerNavigateDetail,
+    SchedulerResourceOption,
+    SchedulerToolbarPresentation
+} from "./scheduler-contract";
+import "./LivoSchedulerComboboxElement";
 
 @customElement("livo-scheduler-toolbar")
 export class LivoSchedulerToolbarElement extends LitElement {
     @property({ type: Object })
     presentation: SchedulerToolbarPresentation = { locale: "en-US" };
 
+    @property({type: Array})
+    resourceOptions: SchedulerResourceOption[] = [];
+
+    @property({ type: String })
+    selectedResourceId: string | null = null;
+
     private _emit(direction: SchedulerNavigateDetail["direction"]) {
         this.dispatchEvent(
-            new CustomEvent(SCHEDULER_EVENTS.navigate, {
+            new CustomEvent<SchedulerNavigateDetail>(SCHEDULER_EVENTS.navigate, {
                 detail: { direction },
                 bubbles: true,
                 composed: true,
@@ -23,12 +35,21 @@ export class LivoSchedulerToolbarElement extends LitElement {
 
         return html`
             <div class="toolbar">
-                <div class="toolbar-actions">
-                    <button type="button" class="btn" @click=${() => this._emit("prev")}>Prev</button>
-                    <button type="button" class="btn" @click=${() => this._emit("today")}>Today</button>
-                    <button type="button" class="btn" @click=${() => this._emit("next")}>Next</button>
+                <div class="toolbar-left">
+                    <div class="toolbar-actions">
+                        <button type="button" class="btn" @click=${() => this._emit("prev")}>Prev</button>
+                        <button type="button" class="btn" @click=${() => this._emit("today")}>Today</button>
+                        <button type="button" class="btn" @click=${() => this._emit("next")}>Next</button>
+                    </div>
+                    ${label ? html`<span class="toolbar-label">${label}</span>` : ""}
                 </div>
-                ${label ? html`<span class="toolbar-label">${label}</span>` : ""}
+
+                <div class="toolbar-right">
+                    <livo-scheduler-combobox
+                            .options=${this.resourceOptions}
+                            .value=${this.selectedResourceId}
+                    ></livo-scheduler-combobox>
+                </div>
             </div>
         `;
     }
@@ -43,6 +64,11 @@ export class LivoSchedulerToolbarElement extends LitElement {
             justify-content: space-between; 
             gap: 1rem;
             margin-bottom: 0.75rem;
+        }
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
         .toolbar-actions { 
             display: flex; 
@@ -64,5 +90,6 @@ export class LivoSchedulerToolbarElement extends LitElement {
             font-weight: 500;
             color: #52525b;
         }
+        .toolbar-right { display: flex; align-items: center; }
     `;
 }

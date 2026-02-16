@@ -11,7 +11,7 @@ export interface SchedulerToolbarPresentation {
     locale?: string;
 }
 
-export type SchedulerNavigateDetail = { direction: "next" | "prev" | "today"};
+export type SchedulerNavigateDetail = { direction: "next" | "prev" | "today" };
 
 export type SchedulerSlotClickDetail = {
     dayIndex: number;
@@ -19,7 +19,17 @@ export type SchedulerSlotClickDetail = {
     dateIso: string;
 };
 
+export interface SchedulerResourceOption {
+    id: string;
+    label: string;
+}
+
+export type SchedulerResourceChangeDetail = {
+    resourceId: string | null;
+};
+
 export const SCHEDULER_EVENTS = {
     navigate: "scheduler-navigate",
     slotClick: "scheduler-slot-click",
+    resourceChange: "scheduler-resource-change",
 };
