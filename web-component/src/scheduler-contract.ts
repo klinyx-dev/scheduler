@@ -17,6 +17,7 @@ export type SchedulerSlotClickDetail = {
     dayIndex: number;
     hour: number;
     dateIso: string;
+    eventId?: string;
 };
 
 export interface SchedulerResourceOption {
@@ -32,4 +33,5 @@ export const SCHEDULER_EVENTS = {
     navigate: "scheduler-navigate",
     slotClick: "scheduler-slot-click",
     resourceChange: "scheduler-resource-change",
+    modalClose: "scheduler-modal-close",
 };

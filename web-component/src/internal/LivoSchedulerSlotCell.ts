@@ -11,9 +11,16 @@ export class LivoSchedulerSlotCell extends LitElement {
     @property({ type: Object }) date!: Date;
 
     private _onClick = () => {
+        const eventId = this.cell?.events?.[0]?.id;
+
         this.dispatchEvent(
             new CustomEvent(SCHEDULER_EVENTS.slotClick, {
-                detail: { dayIndex: this.dayIndex, hour: this.hour, dateIso: this.date.toISOString() },
+                detail: {
+                    dayIndex: this.dayIndex,
+                    hour: this.hour,
+                    dateIso: this.date.toISOString(),
+                    eventId: eventId,
+                },
                 bubbles: true,
                 composed: true,
             })

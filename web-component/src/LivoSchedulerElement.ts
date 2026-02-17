@@ -38,6 +38,8 @@ export class LivoSchedulerElement extends LitElement {
                     .viewModel=${this.viewModel}
                     .presentation=${this.presentation}
             ></livo-scheduler-week-view>
+            
+            <slot name="overlay"></slot>
         `;
     }
 
