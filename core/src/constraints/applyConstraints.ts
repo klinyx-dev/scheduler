@@ -93,17 +93,35 @@ function eventsOverlap(a: SchedulerEvent, b: SchedulerEvent): boolean {
 }
 
 /**
- * Check if any two events in the list overlap.
+ * Check if the events violate the no overlap constraint.
+ * If the events have the same start and end time, they are considered to violate the no overlap constraint.
+ * If the events do not have the same resource, they are NOT considered to violate the no overlap constraint.
  * 
  * @param events - The events to check.
  * @returns True if the events violate the no overlap constraint, false otherwise.
  */
 function violatesNoOverlap(events: SchedulerEvent[]): boolean {
-    // O(n^2) is fine for v1; optimize later
-    for (let i = 0; i < events.length; i++) {
-        for (let j = i + 1; j < events.length; j++) {
-            if (eventsOverlap(events[i], events[j])) return true;
-        }
+    const byResource = new Map<string | undefined, SchedulerEvent[]>();
+
+    for (const event of events) {
+        const key = event.resourceId;
+        const list = byResource.get(key) ?? [];
+        list.push(event);
+        byResource.set(key, list);
     }
+
+    for (const list of byResource.values()) {
+       if (list.length < 2) continue;
+
+       const sorted = [...list].sort((a, b) => a.start.getTime() - b.start.getTime());
+       let maxEnd = sorted[0].end.getTime();
+       
+       for (let i = 1; i < sorted.length; i++) {
+           const start = sorted[i].start.getTime();
+           if (maxEnd > start) return true;
+           maxEnd = Math.max(maxEnd, sorted[i].end.getTime());
+       }
+    }
+
     return false;
 }
