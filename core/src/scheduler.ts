@@ -10,10 +10,11 @@ import {
 import {LayoutResult} from "./layout/types";
 import {DateAdapter, nativeDateAdapter} from "./date";
 import {todayRange} from "./core/navigation";
-import {InternalAction} from "./reducer/actions";
+import {INTERNAL_ACTIONS, InternalAction} from "./reducer/actions";
 import {reducer} from "./reducer/reducer";
 import {computeWeekLayout, pointerDeltaToMinutes} from "./layout/weekViewLayout";
 import {applyConstraints} from "./constraints/applyConstraints";
+import {snapMinutes} from "./core/snap";
 
 export interface Scheduler {
     setEvents(events: SchedulerEvent[]): void;
@@ -35,6 +36,8 @@ export interface Scheduler {
 }
 
 export function createScheduler(config: SchedulerConfig): Scheduler {
+    const configRef = { current: config };
+
     const adapter = config.dateAdapter ?? nativeDateAdapter;
     const initialRange = todayRange(adapter);
 
@@ -58,19 +61,32 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
 
     // Commit the drag if any.
     // If the drag is committed, the events will be updated and constrained.
-    function commitDragIfAny(adapter: DateAdapter) {
+    function commitResizeIfAny(adapter: DateAdapter) {
         const { interaction, events } = state;
     
-        if (interaction.phase !== INTERACTION_PHASES.DRAGGING) return;
-    
+        if (interaction.phase !== INTERACTION_PHASES.RESIZING) return;
+
+        const snap = configRef.current.snapMinutes ?? 0;
         const deltaMinutes = pointerDeltaToMinutes(
             interaction.dragStart,
             interaction.current,
             48,
             60
         );
+
+        const snappedDelta = snapMinutes(deltaMinutes, snap > 0 ? snap : undefined);
     
-        const deltaMs = deltaMinutes * 60_000;
+        const deltaMs = snappedDelta * 60_000;
+        let newStart = interaction.eventStart.getTime();
+        let newEnd = interaction.eventEnd.getTime();
+
+        if (interaction.edge === "start") {
+            newStart = interaction.eventStart.getTime() + deltaMs;
+            if (newStart >= newEnd) return;
+        } else {
+            newEnd = interaction.eventEnd.getTime() + deltaMs;
+            if (newEnd <= newEnd) return;
+        }
     
         const updated = events.map(event =>
             event.id === interaction.eventId
@@ -83,7 +99,37 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
         );
     
         const constrained = applyConstraints(updated, state.constraints, adapter);
-        dispatchInternal({ type: "SET_EVENTS", payload: constrained });
+        dispatchInternal({ type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained });
+    }
+
+    function commitDragIfAny(adapter: DateAdapter) {
+        const { interaction, events } = state;
+
+        if (interaction.phase !== INTERACTION_PHASES.DRAGGING) return;
+
+        const snap = configRef.current.snapMinutes ?? 0;
+        const deltaMinutes = pointerDeltaToMinutes(
+            interaction.dragStart,
+            interaction.current,
+            48,
+            60,
+        );
+
+        const snappedDelta = snapMinutes(deltaMinutes, snap > 0 ? snap : undefined);
+        const deltaMs = snappedDelta * 60_000;
+
+        const updated = events.map(event =>
+            event.id === interaction.eventId
+            ? {
+                ...event,
+                start: new Date(interaction.eventStart.getTime() + deltaMs),
+                end: new Date(interaction.eventEnd.getTime() + deltaMs),
+            }
+            : event
+        );
+
+        const constrained = applyConstraints(updated, state.constraints, adapter);
+        dispatchInternal({ type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained });
     }
     
 
@@ -156,6 +202,7 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
                     dispatchInternal({type: "POINTER_MOVE", payload: action.payload});
                     break;
                 case "POINTER_UP":
+                    commitResizeIfAny(adapter);
                     commitDragIfAny(adapter);
                     dispatchInternal({type: "POINTER_UP"});
                     break;

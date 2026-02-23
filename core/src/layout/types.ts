@@ -1,3 +1,5 @@
+import {DateRange} from "../model/types";
+
 export interface Column {
     key: string;
     date: Date;
@@ -29,5 +31,6 @@ export interface LayoutResult {
     columns: Column[];
     rows: Row[];
     positionedEvents: PositionedEvent[];
-    nowIndicator?: PositionedLine
+    nowIndicator?: PositionedLine;
+    selectionRange?: DateRange;
 }

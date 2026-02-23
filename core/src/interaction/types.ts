@@ -13,8 +13,10 @@ export interface PointerDownPayload {
     coordinates: PointerCoordinates;
     target?: {
         eventId?: string;
+        edge: "start" | "end";
         columnIndex?: number;
         rowIndex?: number;
+        slotDate?: Date;
     };
 }
 
@@ -52,7 +54,7 @@ export type InteractionState =
     | {
         phase: typeof INTERACTION_PHASES.RESIZING;
         eventId: string;
-        edge: "start" | "end";
+        edge?: "start" | "end";
         dragStart: PointerCoordinates;
         current: PointerCoordinates;
         eventStart: Date;
@@ -61,6 +63,7 @@ export type InteractionState =
     | {
         phase: typeof INTERACTION_PHASES.SELECTING_RANGE;
         dragStart: PointerCoordinates;
+        current: PointerCoordinates;
         anchorDate: Date;
     };
 

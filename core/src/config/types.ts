@@ -13,5 +13,6 @@ export interface SchedulerConfig {
     locale?: string;
     timezone?: string;
     constraints?: SchedulerConstraints;
+    snapMinutes?: number;
 }
 
