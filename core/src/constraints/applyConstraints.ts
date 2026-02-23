@@ -2,6 +2,9 @@ import {SchedulerConstraints, SchedulerEvent, TimeRange} from "../types";
 import {DateAdapter, Duration, TIME_UNIT} from "../date";
 import {isSameDay} from "../core/dates";
 
+/**
+ * Apply constraints to a list of events.
+ */
 export function applyConstraints(
     events: SchedulerEvent[],
     constraints: SchedulerConstraints | undefined,
@@ -71,6 +74,14 @@ function withinBusinessHours(event: SchedulerEvent, ranges: TimeRange[], adapter
     });
 }
 
+/**
+ * Check if two events overlap.
+ * If the events have the same start and end time, they are considered to overlap.
+ * 
+ * @param a - The first event.
+ * @param b - The second event.
+ * @returns True if the events overlap, false otherwise.
+ */
 function eventsOverlap(a: SchedulerEvent, b: SchedulerEvent): boolean {
     const startA = a.start.getTime();
     const endA = a.end.getTime();
@@ -81,8 +92,14 @@ function eventsOverlap(a: SchedulerEvent, b: SchedulerEvent): boolean {
     return startA < endB && startB < endA;
 }
 
+/**
+ * Check if any two events in the list overlap.
+ * 
+ * @param events - The events to check.
+ * @returns True if the events violate the no overlap constraint, false otherwise.
+ */
 function violatesNoOverlap(events: SchedulerEvent[]): boolean {
-    // O(n^2) is fine for v1; optimize later if needed.
+    // O(n^2) is fine for v1; optimize later
     for (let i = 0; i < events.length; i++) {
         for (let j = i + 1; j < events.length; j++) {
             if (eventsOverlap(events[i], events[j])) return true;

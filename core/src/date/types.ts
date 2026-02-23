@@ -1,3 +1,6 @@
+/**
+ * Represents a duration in different time units.
+ */
 export type Duration = {
     years?: number;
     months?: number;

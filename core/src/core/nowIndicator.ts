@@ -5,6 +5,14 @@ interface NowParams {
     dayIndex: number;
 }
 
+/**
+ * Compute the top percentage of the now indicator.
+ * Used to position the now indicator in the view.
+ * If the indicator is not in the range of the start and end hour, it will not be displayed.
+ * 
+ * @param params - The parameters for the now indicator.
+ * @returns The now indicator position.
+ */
 export function computeNowIndicator(params: NowParams) {
     const { now, startHour, endHour, dayIndex } = params;
 

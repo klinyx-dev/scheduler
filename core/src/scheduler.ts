@@ -50,11 +50,14 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
     const views = new Map<string, SchedulerView>();
     const listeners: Array<() => void> = [];
 
+    // Dispatch an internal action to the reducer.
     function dispatchInternal(action: InternalAction) {
         state = reducer(state, action);
         listeners.forEach(listener => listener());
     }
 
+    // Commit the drag if any.
+    // If the drag is committed, the events will be updated and constrained.
     function commitDragIfAny(adapter: DateAdapter) {
         const { interaction, events } = state;
     
@@ -84,6 +87,7 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
     }
     
 
+    // Get the layout for the current view.
     function getLayout(): LayoutResult {
         const view = views.get(state.activeView);
 

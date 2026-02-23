@@ -13,6 +13,14 @@ const DEFAULT_OPTIONS = {
     endHour: 24,
 }
 
+/**
+ * Compute the layout for the week view.
+ * 
+ * @param state - The state of the scheduler.
+ * @param adapter - The date adapter.
+ * @param options - The options for the layout.
+ * @returns The layout result.
+ */
 export function computeWeekLayout(
     state: SchedulerState,
     adapter: DateAdapter,
@@ -152,6 +160,15 @@ export function computeWeekLayout(
     };
 }
 
+/**
+ * Compute the delta in minutes between the drag start and the current position.
+ * 
+ * @param dragStart - The drag start position.
+ * @param current - The current position.
+ * @param slotHeightPx - The height of a slot in pixels.
+ * @param minutesPerSlot - The number of minutes per slot.
+ * @returns The delta in minutes.
+ */
 export function pointerDeltaToMinutes(
     dragStart: { y: number },
     current: { y: number },
