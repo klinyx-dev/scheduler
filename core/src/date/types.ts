@@ -8,7 +8,17 @@ export type Duration = {
     seconds?: number;
 }
 
-export type TimeUnit = "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
+export const TIME_UNIT = {
+    SECOND: "second",
+    MINUTE: "minute",
+    HOUR: "hour",
+    DAY: "day",
+    WEEK: "week",
+    MONTH: "month",
+    YEAR: "year",
+}
+
+export type TimeUnit = (typeof TIME_UNIT)[keyof typeof TIME_UNIT];
 
 export interface DateAdapter {
     add(date: Date, duration: Duration): Date

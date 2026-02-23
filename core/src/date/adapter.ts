@@ -1,5 +1,13 @@
-import type { DateAdapter, Duration, TimeUnit } from "./types"
+import type { DateAdapter } from "./types"
 
+/**
+ * Default implementation of the DateAdapter interface using native JavaScript Date objects.
+ * 
+ * Core never talks to a specific date library
+ * It only knows about DateAdapter, 
+ * so later we can plug in other date libraries like dayjs, @livo/datetime, etc.
+ * outside the core package
+ */
 export const nativeDateAdapter: DateAdapter = {
     add(date, d) {
         const out = new Date(date)

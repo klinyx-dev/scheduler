@@ -17,9 +17,6 @@
       "dev": "tsup --watch",
       "test": "vitest"
     },
-    "dependencies": {
-      "@livo/datetime": "file:../../datetime"
-    },
     "devDependencies": {
       "tsup": "^8.5.1",
       "typescript": "^5.0.0",

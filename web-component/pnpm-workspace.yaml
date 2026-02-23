@@ -1,3 +1,0 @@
-overrides:
-  '@livo/datetime': link:../../../../Library/pnpm/global/5/node_modules/@livo/datetime
-  scheduler-core: link:../../../../Library/pnpm/global/5/node_modules/@livo/scheduler-core

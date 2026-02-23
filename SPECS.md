@@ -18,7 +18,7 @@ Core engine must have zero dependency on any UI framework or browser DOM APIs
 +-----------------------+
             |
 +-----------------------+
-|     Default UI        |  (DOM renderer or canonical framework impl)
+|     Default UI        |  (DOM renderer)
 +-----------------------+
             |
 +-----------------------+
