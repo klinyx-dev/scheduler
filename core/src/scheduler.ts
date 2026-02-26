@@ -1,21 +1,14 @@
-import {
-    DateRange, INTERACTION_PHASES,
+import type {
+    DateRange,
     Resource,
     SchedulerAction,
     SchedulerConfig,
     SchedulerEvent,
-    SchedulerState,
-    SchedulerView, VIEW_TYPES, ViewType
 } from "./types";
-import {LayoutResult} from "./layout/types";
-import {nativeDateAdapter} from "./date";
-import {todayRange} from "./core/navigation";
-import {INTERNAL_ACTIONS, InternalAction} from "./reducer/actions";
-import {reducer} from "./reducer/reducer";
-import {computeWeekLayout} from "./layout/weekViewLayout";
-import {applyConstraints} from "./constraints/applyConstraints";
-import {WEEK_VIEW_OPTIONS} from "./layout/weekViewOptions";
-import {commitDragIfAny, commitResizeIfAny} from "./interaction/commit";
+import type { LayoutResult } from "./layout/types";
+import type { SchedulerState } from "./interaction/types";
+import type { SchedulerView, ViewType } from "./view/types";
+import { createEngine } from "./engine";
 
 export interface Scheduler {
     setEvents(events: SchedulerEvent[]): void;
@@ -36,113 +29,47 @@ export interface Scheduler {
     destroy(): void;
 }
 
+/**
+ * The main entry point for the scheduler.
+ * 
+ * @param config - The configuration for the scheduler.
+ * @returns A new scheduler instance.
+ */
 export function createScheduler(config: SchedulerConfig): Scheduler {
-    const configRef = { current: config };
-
-    const adapter = config.dateAdapter ?? nativeDateAdapter;
-    const initialRange = todayRange(adapter);
-
-    let state: SchedulerState = {
-        activeView: config.initialView ?? VIEW_TYPES.WEEK,
-        constraints: config.constraints,
-        dateRange: initialRange,
-        events: [],
-        interaction: { phase: INTERACTION_PHASES.IDLE },
-        resources: undefined
-    };
-
-    const views = new Map<string, SchedulerView>();
-    const listeners: Array<() => void> = [];
-
-    // Dispatch an internal action to the reducer.
-    function dispatchInternal(action: InternalAction) {
-        state = reducer(state, action);
-        listeners.forEach(listener => listener());
-    }
-
-    // Get the layout for the current view.
-    function getLayout(): LayoutResult {
-        const view = views.get(state.activeView);
-
-        if (!view) {
-            return {
-                columns: [],
-                rows: [],
-                positionedEvents: [],
-            };
-        }
-
-        if (state.activeView === VIEW_TYPES.WEEK) {
-            return computeWeekLayout(state, adapter, WEEK_VIEW_OPTIONS);
-        }
-
-        return view.computeLayout(state);
-    }
-
-    const weekView: SchedulerView = {
-        type: VIEW_TYPES.WEEK,
-        computeLayout(state: SchedulerState): LayoutResult {
-            return computeWeekLayout(state, adapter, WEEK_VIEW_OPTIONS);
-        },
-    };
-    views.set(VIEW_TYPES.WEEK, weekView);
+    const engine = createEngine(config);
 
     return {
         setEvents(events) {
-            const constrained = applyConstraints(
-                events,
-                state.constraints,
-                adapter
-            );
-            dispatchInternal({type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained});
+            engine.setEvents(events);
         },
         setResources(resources) {
-            dispatchInternal({type: INTERNAL_ACTIONS.SET_RESOURCES, payload: resources});
+            engine.setResources?.(resources);
         },
         setView(viewType) {
-            dispatchInternal({type: INTERNAL_ACTIONS.SET_VIEW, payload: viewType});
+            engine.setView(viewType);
         },
         setDateRange(range) {
-            dispatchInternal({type: INTERNAL_ACTIONS.SET_DATE_RANGE, payload: range});
+            engine.setDateRange(range);
         },
         updateConfig(partial) {
-            dispatchInternal({type: INTERNAL_ACTIONS.UPDATE_CONFIG, payload: partial});
+            engine.updateConfig(partial);
         },
         registerView(view) {
-            views.set(view.type, view);
+            engine.registerView(view);
         },
         getAvailableViews() {
-            return Array.from(views.keys());
+            return engine.getAvailableViews();
         },
         dispatch(action) {
-            switch (action.type) {
-                case "POINTER_DOWN":
-                    dispatchInternal({type: "POINTER_DOWN", payload: action.payload});
-                    break;
-                case "POINTER_MOVE":
-                    dispatchInternal({type: "POINTER_MOVE", payload: action.payload});
-                    break;
-                case "POINTER_UP":
-                    commitResizeIfAny(state, configRef, adapter, dispatchInternal);
-                    commitDragIfAny(state, configRef, adapter, dispatchInternal);
-                    dispatchInternal({type: "POINTER_UP"});
-                    break;
-                case "CANCEL_INTERACTION":
-                    dispatchInternal({type: "CANCEL_INTERACTION"});
-                    break;
-            }
+            engine.dispatch(action);
         },
-        getState: () => state,
-        getLayout,
+        getState: () => engine.getState(),
+        getLayout: () => engine.getLayout(),
         subscribe(listener) {
-            listeners.push(listener);
-            return () => {
-                const i = listeners.indexOf(listener);
-                if (i !== -1) listeners.splice(i, 1);
-            };
+            return engine.subscribe(listener);
         },
         destroy() {
-            listeners.length = 0;
+            engine.destroy();
         },
     };
 }

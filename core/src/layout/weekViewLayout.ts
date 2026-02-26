@@ -78,29 +78,35 @@ function positionEventInGrid(
     }
 }
 
-function placeWeekEvents(
-    events: SchedulerEvent[],
-    days: Date[],
-    opts: WeekLayoutOptions,
-    adapter: DateAdapter,
-): PositionedEvent[] {
-    const positioned: PositionedEvent[] = [];
-
-    for (let z = 0; z < events.length; z++) {
-        const event = events[z];
-        const position = positionEventInGrid(event, days, opts, adapter);
-
-        if (!position) continue;
-
-        positioned.push({
-            id: event.id,
-            ...position,
-            zIndex: z + 1,
-        });
-    }
-
-    return positioned;
+export interface TimeGridLayoutStrategy {
+    compute(
+        events: SchedulerEvent[],
+        days: Date[],
+        opts: WeekLayoutOptions,
+        adapter: DateAdapter,
+    ): PositionedEvent[];
 }
+
+const simpleStackingStrategy: TimeGridLayoutStrategy = {
+    compute(events, days, opts, adapter) {
+        const positioned: PositionedEvent[] = [];
+
+        for (let z = 0; z < events.length; z++) {
+            const event = events[z];
+            const position = positionEventInGrid(event, days, opts, adapter);
+
+            if (!position) continue;
+
+            positioned.push({
+                id: event.id,
+                ...position,
+                zIndex: z + 1,
+            });
+        }
+
+        return positioned;
+    },
+};
 
 function addDragPreviewIfNeeded(
     state: SchedulerState,
@@ -134,12 +140,38 @@ function addDragPreviewIfNeeded(
 
     const base = positionedEvents.find((pe) => pe.id === eventId);
 
-    // for now, just duplicate the real event as a preview (no time shift yet)
     positionedEvents.push({
         id: `${eventId}-preview`,
         ...position,
         zIndex: (base?.zIndex ?? 0) + 100,
+        isPreview: true,
     });
+}
+
+function addSelectionRangeIfNeeded(
+    state: SchedulerState,
+    opts: WeekLayoutOptions,
+): { selectionRange?: { start: Date; end: Date } } {
+    if (state.interaction.phase !== INTERACTION_PHASES.SELECTING_RANGE) {
+        return {};
+    }
+
+    const { anchorDate, dragStart, current } = state.interaction;
+
+    const deltaMinutes = pointerDeltaToMinutes(
+        dragStart,
+        current,
+        opts.slotHeightPx,
+        MINUTES_PER_SLOT,
+    );
+
+    const start = new Date(anchorDate.getTime());
+    const end = new Date(anchorDate.getTime() + deltaMinutes * 60_000);
+
+    const rangeStart = start.getTime() <= end.getTime() ? start : end;
+    const rangeEnd = start.getTime() <= end.getTime() ? end : start;
+
+    return { selectionRange: { start: rangeStart, end: rangeEnd } };
 }
 
 function getNowIndicatorLine(
@@ -170,14 +202,6 @@ function getNowIndicatorLine(
     };
 }
 
-/**
- * Compute the layout for the week view.
- * 
- * @param state - The state of the scheduler.
- * @param adapter - The date adapter.
- * @param options - The options for the layout.
- * @returns The layout result.
- */
 export function computeWeekLayout(
     state: SchedulerState,
     adapter: DateAdapter,
@@ -196,9 +220,16 @@ export function computeWeekLayout(
     const columns = buildWeekColumns(days, opts.columnWidthPx);
     const rows = buildWeekRows(opts);
 
-    const positionedEvents = placeWeekEvents(events, days, opts, adapter);
+    const positionedEvents = simpleStackingStrategy.compute(
+        events,
+        days,
+        opts,
+        adapter,
+    );
 
     addDragPreviewIfNeeded(state, days, opts, adapter, positionedEvents);
+
+    const { selectionRange } = addSelectionRangeIfNeeded(state, opts);
 
     const nowIndicator = getNowIndicatorLine(days, opts, adapter);
 
@@ -206,7 +237,8 @@ export function computeWeekLayout(
         columns,
         rows,
         positionedEvents,
-        nowIndicator
+        nowIndicator,
+        selectionRange,
     };
 }
 

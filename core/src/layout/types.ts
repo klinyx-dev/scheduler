@@ -19,6 +19,11 @@ export interface PositionedEvent {
     left: number;
     width: number;
     zIndex: number;
+    /**
+     * Optional flag indicating this entry is a transient preview
+     * (e.g. drag/resize ghost) rather than a committed event.
+     */
+    isPreview?: boolean;
 }
 
 export interface PositionedLine {

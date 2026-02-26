@@ -24,7 +24,7 @@ function applyCommit(
             : event
     );
 
-    return applyConstraints(events, state.constraints, adapter);
+    return applyConstraints(updated, state.constraints, adapter);
 }
 
 export function commitResizeIfAny(
