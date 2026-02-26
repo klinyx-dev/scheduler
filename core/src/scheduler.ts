@@ -8,13 +8,14 @@ import {
     SchedulerView, VIEW_TYPES, ViewType
 } from "./types";
 import {LayoutResult} from "./layout/types";
-import {DateAdapter, nativeDateAdapter} from "./date";
+import {nativeDateAdapter} from "./date";
 import {todayRange} from "./core/navigation";
 import {INTERNAL_ACTIONS, InternalAction} from "./reducer/actions";
 import {reducer} from "./reducer/reducer";
-import {computeWeekLayout, pointerDeltaToMinutes} from "./layout/weekViewLayout";
+import {computeWeekLayout} from "./layout/weekViewLayout";
 import {applyConstraints} from "./constraints/applyConstraints";
-import {snapMinutes} from "./core/snap";
+import {WEEK_VIEW_OPTIONS} from "./layout/weekViewOptions";
+import {commitDragIfAny, commitResizeIfAny} from "./interaction/commit";
 
 export interface Scheduler {
     setEvents(events: SchedulerEvent[]): void;
@@ -59,80 +60,6 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
         listeners.forEach(listener => listener());
     }
 
-    // Commit the drag if any.
-    // If the drag is committed, the events will be updated and constrained.
-    function commitResizeIfAny(adapter: DateAdapter) {
-        const { interaction, events } = state;
-    
-        if (interaction.phase !== INTERACTION_PHASES.RESIZING) return;
-
-        const snap = configRef.current.snapMinutes ?? 0;
-        const deltaMinutes = pointerDeltaToMinutes(
-            interaction.dragStart,
-            interaction.current,
-            48,
-            60
-        );
-
-        const snappedDelta = snapMinutes(deltaMinutes, snap > 0 ? snap : undefined);
-    
-        const deltaMs = snappedDelta * 60_000;
-        let newStart = interaction.eventStart.getTime();
-        let newEnd = interaction.eventEnd.getTime();
-
-        if (interaction.edge === "start") {
-            newStart = interaction.eventStart.getTime() + deltaMs;
-            if (newStart >= newEnd) return;
-        } else {
-            newEnd = interaction.eventEnd.getTime() + deltaMs;
-            if (newEnd <= newEnd) return;
-        }
-    
-        const updated = events.map(event =>
-            event.id === interaction.eventId
-            ? {
-                ...event,
-                start: new Date(interaction.eventStart.getTime() + deltaMs),
-                end: new Date(interaction.eventEnd.getTime() + deltaMs),
-                }
-            : event
-        );
-    
-        const constrained = applyConstraints(updated, state.constraints, adapter);
-        dispatchInternal({ type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained });
-    }
-
-    function commitDragIfAny(adapter: DateAdapter) {
-        const { interaction, events } = state;
-
-        if (interaction.phase !== INTERACTION_PHASES.DRAGGING) return;
-
-        const snap = configRef.current.snapMinutes ?? 0;
-        const deltaMinutes = pointerDeltaToMinutes(
-            interaction.dragStart,
-            interaction.current,
-            48,
-            60,
-        );
-
-        const snappedDelta = snapMinutes(deltaMinutes, snap > 0 ? snap : undefined);
-        const deltaMs = snappedDelta * 60_000;
-
-        const updated = events.map(event =>
-            event.id === interaction.eventId
-            ? {
-                ...event,
-                start: new Date(interaction.eventStart.getTime() + deltaMs),
-                end: new Date(interaction.eventEnd.getTime() + deltaMs),
-            }
-            : event
-        );
-
-        const constrained = applyConstraints(updated, state.constraints, adapter);
-        dispatchInternal({ type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained });
-    }
-    
-
     // Get the layout for the current view.
     function getLayout(): LayoutResult {
         const view = views.get(state.activeView);
@@ -146,12 +73,7 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
         }
 
         if (state.activeView === VIEW_TYPES.WEEK) {
-            return computeWeekLayout(state, adapter, {
-                startHour: 0,
-                endHour: 24,
-                slotHeightPx: 48,
-                columnWidthPx: 120,
-            });
+            return computeWeekLayout(state, adapter, WEEK_VIEW_OPTIONS);
         }
 
         return view.computeLayout(state);
@@ -160,32 +82,31 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
     const weekView: SchedulerView = {
         type: VIEW_TYPES.WEEK,
         computeLayout(state: SchedulerState): LayoutResult {
-            return computeWeekLayout(state, adapter, {
-                startHour: 0,
-                endHour: 24,
-                slotHeightPx: 48,
-                columnWidthPx: 120,
-            });
+            return computeWeekLayout(state, adapter, WEEK_VIEW_OPTIONS);
         },
     };
     views.set(VIEW_TYPES.WEEK, weekView);
 
     return {
         setEvents(events) {
-            const constrained = applyConstraints(events, state.constraints, adapter);
-            dispatchInternal({type: "SET_EVENTS", payload: constrained});
+            const constrained = applyConstraints(
+                events,
+                state.constraints,
+                adapter
+            );
+            dispatchInternal({type: INTERNAL_ACTIONS.SET_EVENTS, payload: constrained});
         },
         setResources(resources) {
-            dispatchInternal({type: "SET_RESOURCES", payload: resources});
+            dispatchInternal({type: INTERNAL_ACTIONS.SET_RESOURCES, payload: resources});
         },
         setView(viewType) {
-            dispatchInternal({type: "SET_VIEW", payload: viewType});
+            dispatchInternal({type: INTERNAL_ACTIONS.SET_VIEW, payload: viewType});
         },
         setDateRange(range) {
-            dispatchInternal({type: "SET_DATE_RANGE", payload: range});
+            dispatchInternal({type: INTERNAL_ACTIONS.SET_DATE_RANGE, payload: range});
         },
         updateConfig(partial) {
-            dispatchInternal({type: "UPDATE_CONFIG", payload: partial});
+            dispatchInternal({type: INTERNAL_ACTIONS.UPDATE_CONFIG, payload: partial});
         },
         registerView(view) {
             views.set(view.type, view);
@@ -202,8 +123,8 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
                     dispatchInternal({type: "POINTER_MOVE", payload: action.payload});
                     break;
                 case "POINTER_UP":
-                    commitResizeIfAny(adapter);
-                    commitDragIfAny(adapter);
+                    commitResizeIfAny(state, configRef, adapter, dispatchInternal);
+                    commitDragIfAny(state, configRef, adapter, dispatchInternal);
                     dispatchInternal({type: "POINTER_UP"});
                     break;
                 case "CANCEL_INTERACTION":
@@ -225,4 +146,3 @@ export function createScheduler(config: SchedulerConfig): Scheduler {
         },
     };
 }
-

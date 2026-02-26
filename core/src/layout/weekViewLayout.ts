@@ -1,16 +1,173 @@
-import {INTERACTION_PHASES, SchedulerState} from "../types";
+import {INTERACTION_PHASES, SchedulerEvent, SchedulerState} from "../types";
 import {DateAdapter, TIME_UNIT} from "../date";
 import {LayoutResult, PositionedEvent, PositionedLine} from "./types";
 import {getWeekDays, isSameDay} from "../core/dates";
 import {computeNowIndicator} from "../core/nowIndicator";
+import {WEEK_VIEW_OPTIONS} from "./weekViewOptions";
 
 const MINUTES_PER_SLOT = 60;
 
-const DEFAULT_OPTIONS = {
+export type WeekLayoutOptions = {
+    startHour: number;
+    endHour: number;
+    slotHeightPx: number;
+    columnWidthPx: number;
+};
+
+const DEFAULT_OPTIONS: WeekLayoutOptions = {
     slotHeightPx: 48,
     columnWidthPx: 120,
     startHour: 0,
     endHour: 24,
+};
+
+function buildWeekColumns(days: Date[], columnWidthPx: number): { key: string; date: Date; width: number }[] {
+    return days.map((date, i) => ({
+        key: `col-${i}`,
+        date,
+        width: columnWidthPx,
+    }));
+}
+
+function buildWeekRows(opts: WeekLayoutOptions): { key: string; top: number; height: number }[] {
+    const slotCount = opts.endHour - opts.startHour;
+    return Array.from({ length: slotCount }, (_, i) => ({
+        key: `row-${i}`,
+        top: i * opts.slotHeightPx,
+        height: opts.slotHeightPx,
+    }));
+}
+
+interface PositionInGrid {
+    top: number;
+    height: number;
+    left: number;
+    width: number;
+}
+
+function positionEventInGrid(
+    event: { start: Date; end: Date },
+    days: Date[],
+    opts: WeekLayoutOptions,
+    adapter: DateAdapter,
+): PositionInGrid | null {
+    const dayStart = adapter.startOf(event.start, TIME_UNIT.DAY);
+    const dayIndex = days.findIndex((d) => adapter.startOf(d, TIME_UNIT.DAY).getTime() === dayStart.getTime());
+
+    if (dayIndex < 0) return null;
+
+    const startHours = event.start.getHours() + event.start.getMinutes() / 60;
+    const endHours = event.end.getHours() + event.end.getMinutes() / 60;
+
+    if (endHours <= opts.startHour || startHours >= opts.endHour) return null;
+
+    const clampedStart = Math.max(startHours, opts.startHour);
+    const clampedEnd = Math.min(endHours, opts.endHour);
+
+    const top = (clampedStart - opts.startHour) * opts.slotHeightPx;
+    const height = Math.max(
+        opts.slotHeightPx / 2,
+        (clampedEnd - clampedStart) * opts.slotHeightPx
+    );
+
+    return {
+        top,
+        height,
+        left: dayIndex * opts.columnWidthPx,
+        width: opts.columnWidthPx,
+    }
+}
+
+function placeWeekEvents(
+    events: SchedulerEvent[],
+    days: Date[],
+    opts: WeekLayoutOptions,
+    adapter: DateAdapter,
+): PositionedEvent[] {
+    const positioned: PositionedEvent[] = [];
+
+    for (let z = 0; z < events.length; z++) {
+        const event = events[z];
+        const position = positionEventInGrid(event, days, opts, adapter);
+
+        if (!position) continue;
+
+        positioned.push({
+            id: event.id,
+            ...position,
+            zIndex: z + 1,
+        });
+    }
+
+    return positioned;
+}
+
+function addDragPreviewIfNeeded(
+    state: SchedulerState,
+    days: Date[],
+    opts: WeekLayoutOptions,
+    adapter: DateAdapter,
+    positionedEvents: PositionedEvent[],
+) {
+    if (state.interaction.phase !== INTERACTION_PHASES.DRAGGING) return;
+
+    const { eventId, eventStart, eventEnd, dragStart, current } = state.interaction;
+
+    const deltaMinutes = pointerDeltaToMinutes(
+        dragStart,
+        current,
+        opts.slotHeightPx,
+        MINUTES_PER_SLOT
+    );
+
+    const tentativeStart = new Date(eventStart.getTime() + deltaMinutes * 60_000);
+    const tentativeEnd = new Date(eventEnd.getTime() + deltaMinutes * 60_000);
+
+    const position = positionEventInGrid(
+        { start: tentativeStart, end: tentativeEnd },
+        days,
+        opts,
+        adapter,
+    );
+
+    if (!position) return;
+
+    const base = positionedEvents.find((pe) => pe.id === eventId);
+
+    // for now, just duplicate the real event as a preview (no time shift yet)
+    positionedEvents.push({
+        id: `${eventId}-preview`,
+        ...position,
+        zIndex: (base?.zIndex ?? 0) + 100,
+    });
+}
+
+function getNowIndicatorLine(
+    days: Date[],
+    opts: WeekLayoutOptions,
+    adapter: DateAdapter,
+): PositionedLine | undefined {
+    const now = new Date();
+    const todayIndex = days.findIndex((d) => isSameDay(d, now, adapter));
+
+    if (todayIndex < 0) return undefined;
+
+    const slotCount = opts.endHour - opts.startHour;
+
+    const indicator = computeNowIndicator({
+        now,
+        startHour: opts.startHour,
+        endHour: opts.endHour,
+        dayIndex: todayIndex,
+    });
+
+    if (!indicator.visible) return undefined;
+
+    return {
+        top: (indicator.topPercent / 100) * (slotCount * opts.slotHeightPx),
+        left: todayIndex * opts.columnWidthPx,
+        width: opts.columnWidthPx,
+    };
 }
 
 /**
@@ -24,133 +181,26 @@ const DEFAULT_OPTIONS = {
 export function computeWeekLayout(
     state: SchedulerState,
     adapter: DateAdapter,
-    options: {
-        slotHeightPx: number;
-        columnWidthPx: number;
-        startHour: number;
-        endHour: number;
-    },
+    options: Partial<WeekLayoutOptions> = {}
 ): LayoutResult {
     const opts = {
         ...DEFAULT_OPTIONS,
         ...options,
     };
+
     const { dateRange, events } = state;
 
     const weekStart = adapter.startOf(dateRange.start, TIME_UNIT.WEEK);
     const days = getWeekDays(weekStart, adapter);
-    const slotCount = opts.endHour - opts.startHour;
 
-    const columns = days.map((date, i) => ({
-        key: `col-${i}`,
-        date,
-        width: opts.columnWidthPx
-    }));
+    const columns = buildWeekColumns(days, opts.columnWidthPx);
+    const rows = buildWeekRows(opts);
 
-    const rows = Array.from({ length: slotCount }, (_, i) => ({
-        key: `row-${i}`,
-        top: i * opts.slotHeightPx,
-        height: opts.slotHeightPx,
-    }));
+    const positionedEvents = placeWeekEvents(events, days, opts, adapter);
 
-    const positionedEvents: PositionedEvent[] = [];
+    addDragPreviewIfNeeded(state, days, opts, adapter, positionedEvents);
 
-    for (let z = 0; z < events.length; z++) {
-        const event = events[z];
-        const dayStart = adapter.startOf(event.start, "day");
-        const dayIndex = days.findIndex(
-            (d) => adapter.startOf(d, "day").getTime() === dayStart.getTime()
-        );
-
-        if (dayIndex < 0) continue;
-
-        const startHours = event.start.getHours() + event.start.getMinutes() / 60;
-        const endHours = event.end.getHours() + event.end.getMinutes() / 60;
-
-        if (endHours <= opts.startHour || startHours >= opts.endHour) continue;
-
-        const clampedStart = Math.max(startHours, opts.startHour);
-        const clampedEnd = Math.min(endHours, opts.endHour);
-
-        const top = (clampedStart - opts.startHour) * opts.slotHeightPx;
-        const height = Math.max(
-            opts.slotHeightPx / 2,
-            (clampedEnd - clampedStart) * opts.slotHeightPx
-        );
-
-        positionedEvents.push({
-            id: event.id,
-            top,
-            height,
-            left: dayIndex * opts.columnWidthPx,
-            width: opts.columnWidthPx,
-            zIndex: z + 1,
-        });
-    }
-
-    if (state.interaction.phase === INTERACTION_PHASES.DRAGGING) {
-        const { eventId, eventStart, eventEnd, dragStart, current } = state.interaction;
-
-        const deltaMinutes = pointerDeltaToMinutes(dragStart, current, opts.slotHeightPx, MINUTES_PER_SLOT);
-
-        const tentativeStart = new Date(eventStart.getTime() + deltaMinutes * 60_000);
-        const tentativeEnd = new Date(eventEnd.getTime() + deltaMinutes * 60_000);
-
-        const dayStart = adapter.startOf(tentativeStart, TIME_UNIT.DAY);
-        const dayIndex = days.findIndex(
-            (d) => adapter.startOf(d, TIME_UNIT.DAY).getTime() === dayStart.getTime(),
-        );
-
-        if (dayIndex >= 0) {
-            const startHours = tentativeStart.getHours() + tentativeStart.getMinutes() / 60;
-            const endHours = tentativeEnd.getHours() + tentativeEnd.getMinutes() / 60;
-
-            if (endHours > opts.startHour && startHours < opts.endHour) {
-                const clampedStart = Math.max(startHours, opts.startHour);
-                const clampedEnd = Math.min(endHours, opts.endHour);
-
-                const top = (clampedStart - opts.startHour) * opts.slotHeightPx;
-                const height = Math.max(
-                    opts.slotHeightPx / 2,
-                    (clampedEnd - clampedStart) * opts.slotHeightPx
-                );
-
-                const base = positionedEvents.find(pe => pe.id === eventId);
-
-                // for now, just duplicate the real event as a preview (no time shift yet)
-                positionedEvents.push({
-                    id: `${eventId}-preview`,
-                    top,
-                    height,
-                    left: dayIndex * opts.columnWidthPx,
-                    width: base?.width ?? opts.columnWidthPx,
-                    zIndex: (base?.zIndex ?? 0) + 100,
-                });
-            }
-        }
-    }
-
-    const now = new Date();
-    const todayIndex = days.findIndex((d) => isSameDay(d, now, adapter));
-
-    let nowIndicator: PositionedLine | undefined;
-
-    if (todayIndex >= 0) {
-        const indicator = computeNowIndicator({
-            now,
-            startHour: opts.startHour,
-            endHour: opts.endHour,
-            dayIndex: todayIndex,
-        });
-
-        if (indicator.visible) {
-            nowIndicator = {
-                top: (indicator.topPercent / 100) * (slotCount * opts.slotHeightPx),
-                left: todayIndex * opts.columnWidthPx,
-                width: opts.columnWidthPx,
-            };
-        }
-    }
+    const nowIndicator = getNowIndicatorLine(days, opts, adapter);
 
     return {
         columns,
